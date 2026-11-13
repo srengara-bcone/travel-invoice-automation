@@ -1,0 +1,37 @@
+# Expense types the extractor may return, one per line, exactly as written in the expense sheet.
+Airfare Domestic
+Airfare International
+Airline Baggage Fees
+Autorickshaw/Bus
+Cab/Shuttle/Bus/Train
+Cab/Shuttle/Train
+Car Rental
+Client Entertainment (Others)
+Client Entertainment (Sr. Dir & Above)
+Computer Supplies
+Currency Exchange Fees
+Internet Bills
+International Roaming Charges
+Laundry - Extended Stay
+Lodging
+Meals
+Meals (BF: Sr. Dir & above) - Otherthan India
+Meals (Dinner: Sr. Dir & above)
+Meals (Lunch: Sr. Dir & above)
+Membership and Subscription
+Mobile Bills
+Moving of Household goods and personal items
+Office Supplies
+Parking
+Per diem
+Personal Car Miles - USA
+Personal Mileage India - 2 wheeler/4 wheeler
+Postage or Printing or Shipping or Xerox
+Seminar and conference
+Staff Welfare
+Team Celebrations
+Team Engagement (Sr. Dir. & Above)
+Toll
+Training Expenses
+Travel Insurance
+VISA Processing Fee

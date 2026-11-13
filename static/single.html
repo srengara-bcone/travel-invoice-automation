@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Receipt Extractor</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="nav">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></div>
+      <div><b>Receipt Extractor</b><span>Travel expenses</span></div>
+    </div>
+    <div class="menu">
+      <a class="link" href="/"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Rename receipts</a>
+      <a class="link on" href="/single"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>Single receipt</a>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>Travel invoices</span></div>
+      <div class="actions">
+        <button class="btn" id="copy" hidden>Copy JSON</button>
+        <button class="btn primary" id="pickBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>Upload receipt</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <h1>Receipt Overview</h1>
+      <p>Upload an invoice to read its amount, date and expense type. Click any value to copy it.</p>
+
+      <div class="stats">
+        <div class="stat green"><div class="k">Total Amount</div><div class="v na" id="sAmount">&ndash;</div></div>
+        <div class="stat blue"><div class="k">Date</div><div class="v na" id="sDate">&ndash;</div></div>
+        <div class="stat coral"><div class="k">Expense Type</div><div class="v na" id="sType">&ndash;</div></div>
+        <div class="stat yellow"><div class="k">Confidence</div><div class="v na" id="sConf">&ndash;</div></div>
+      </div>
+
+      <div class="split">
+        <section class="card" aria-label="Receipt image">
+          <div class="card-h"><h3>Receipt</h3><span class="sub" id="fname"></span></div>
+          <div class="card-b">
+            <div id="drop" tabindex="0" role="button" aria-label="Choose a receipt image">
+              <div class="hint">
+                <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></div>
+                <b>Drop a receipt here, or click to browse</b>
+                <span>PDF, JPG, PNG, WebP or GIF, up to 100 MB. You can also paste an image.</span>
+              </div>
+              <div id="preview"><img alt="Uploaded receipt preview" id="img" hidden><iframe id="pdf" title="PDF preview" hidden></iframe></div>
+            </div>
+            <input id="file" type="file" accept="image/*,application/pdf">
+          </div>
+        </section>
+
+        <section class="card" aria-label="Details" aria-live="polite">
+          <div class="card-h"><h3>Details</h3></div>
+          <div id="out"><div class="empty">Details will appear here once you upload a receipt.</div></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <aside class="side">
+    <h2>Recent receipts</h2>
+    <div class="recent" id="recent"><div class="none">No receipts yet</div></div>
+  </aside>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const drop = $('drop'), fileInput = $('file'), out = $('out'), copyBtn = $('copy');
+const history = []; let current = null;
+const STATS = ['sAmount', 'sDate', 'sType', 'sConf'];
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate = iso => { if (!iso) return ''; const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? esc(iso) : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
+const fmtAmt = n => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const setStat = (id, html, na) => { const el = $(id); el.innerHTML = html; el.className = 'v' + (id !== 'sAmount' ? ' sm' : '') + (na ? ' na' : ''); };
+const row = (k, v) => `<div class="r"><span class="k">${k}</span><span class="v${v ? '' : ' na'}">${v || 'Not found'}</span></div>`;
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+function render(d) {
+  d.amount == null ? setStat('sAmount', 'Not found', 1) : setStat('sAmount', `<span class="cp" data-copy="${d.amount.toFixed(2)}" title="Click to copy">${fmtAmt(d.amount)}</span>${d.currency ? `<span class="cur cp" data-copy="${esc(d.currency)}" title="Click to copy">${esc(d.currency)}</span>` : ''}`);
+  d.date ? setStat('sDate', `<span class="cp" data-copy="${esc(d.date)}" title="Click to copy (${esc(d.date)})">${fmtDate(d.date)}</span>`) : setStat('sDate', 'Not found', 1);
+  setStat('sType', `<span class="cp" data-copy="${esc(d.type)}" title="Click to copy">${esc(d.type)}</span>`);
+  setStat('sConf', esc(cap(d.confidence)));
+  out.innerHTML =
+    `<div class="rows">
+       ${row('Confidence', `<span class="pill ${esc(d.confidence)}">${esc(cap(d.confidence))}</span>`)}
+       ${row('Model', d.model ? esc(d.model) : '')}
+     </div>
+     ${d.notes ? `<p class="note">${esc(d.notes)}</p>` : ''}
+     <details><summary>Raw response</summary><pre>${esc(JSON.stringify(d, null, 2))}</pre></details>`;
+  copyBtn.hidden = false;
+}
+
+function reset() {
+  STATS.forEach(id => setStat(id, '<span class="sk" style="display:inline-block;height:26px;width:110px"></span>', 0));
+  out.innerHTML = `<div style="padding:18px 22px;display:grid;gap:14px"><div class="sk" style="height:18px"></div><div class="sk" style="height:18px"></div><div class="sk" style="height:18px;width:60%"></div><div style="color:var(--muted);font-size:13px">Reading your receipt...</div></div>`;
+  copyBtn.hidden = true;
+}
+
+function failed(msg) {
+  STATS.forEach(id => setStat(id, '&ndash;', 1));
+  out.innerHTML = `<div class="error"><b>Couldn't read this receipt</b>${esc(msg)}</div>`;
+  copyBtn.hidden = true;
+}
+
+const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+
+function showImage(url, name, pdf) {
+  $('img').hidden = pdf; $('pdf').hidden = !pdf;
+  $(pdf ? 'pdf' : 'img').src = url;
+  drop.classList.add('has-img'); $('fname').textContent = name;
+}
+
+function renderRecent() {
+  $('recent').innerHTML = history.length ? history.map((h, i) =>
+    `<button class="item${h === current ? ' on' : ''}" data-i="${i}">${h.pdf ? '<span class="pdf">PDF</span>' : `<img src="${h.url}" alt="">`}<div><b>${esc(h.name)}</b><small>${h.data.amount != null ? fmtAmt(h.data.amount) + ' ' + esc(h.data.currency || '') : 'No amount'}</small></div></button>`).join('')
+    : '<div class="none">No receipts yet</div>';
+}
+
+async function upload(file) {
+  if (!file || !(file.type.startsWith('image/') || isPdf(file))) return failed('Please choose a PDF or an image (JPG, PNG, WebP or GIF).');
+  const url = URL.createObjectURL(file), pdf = isPdf(file);
+  showImage(url, file.name, pdf); reset(); current = null; renderRecent();
+  try {
+    const r = await fetch('/extract', { method: 'POST', headers: { 'X-Filename': encodeURIComponent(file.name) }, body: file });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || r.statusText);
+    current = { url, name: file.name, pdf, data }; history.unshift(current);
+    render(data); renderRecent();
+  } catch (e) { failed(e.message); }
+}
+
+$('recent').addEventListener('click', e => {
+  const b = e.target.closest('.item'); if (!b) return;
+  current = history[+b.dataset.i]; showImage(current.url, current.name, current.pdf); render(current.data); renderRecent();
+});
+
+const pick = () => { fileInput.value = ''; fileInput.click(); };
+$('pickBtn').addEventListener('click', pick);
+drop.addEventListener('click', () => { if (!drop.classList.contains('has-img')) pick(); });
+drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+fileInput.addEventListener('change', () => upload(fileInput.files[0]));
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => upload(e.dataTransfer.files[0]));
+window.addEventListener('paste', e => { const f = [...(e.clipboardData?.files || [])][0]; if (f) upload(f); });
+copyBtn.addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(JSON.stringify(current.data, null, 2)); copyBtn.textContent = 'Copied'; } catch { copyBtn.textContent = 'Copy failed'; }
+  setTimeout(() => copyBtn.textContent = 'Copy JSON', 1400);
+});
+</script>
+</body>
+</html>

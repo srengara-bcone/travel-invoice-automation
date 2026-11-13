@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rename receipts</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .app { grid-template-columns: 224px minmax(0, 1fr); }
+  @media (max-width: 760px) { .app { grid-template-columns: 1fr; } }
+  td.er { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; white-space: nowrap; }
+  .slots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .slots { grid-template-columns: 1fr; } }
+  .slot { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1.5px dashed var(--line-2); border-radius: 12px; background: var(--bg); cursor: pointer; transition: border-color .15s; min-width: 0; }
+  .slot:hover, .slot.over, .slot:focus-visible { border-color: var(--yellow); outline: none; }
+  .slot.ok { border-style: solid; border-color: var(--line-2); }
+  .slot .ic { width: 42px; height: 42px; border-radius: 11px; background: var(--card); color: var(--yellow); display: grid; place-items: center; flex: none; }
+  .slot .t { min-width: 0; flex: 1; }
+  .slot .t b { display: block; font-size: 14px; }
+  .slot .t span { display: block; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slot .t span.need { color: var(--coral); }
+  .slot .t span.good { color: var(--green); }
+  .slot .chg { color: var(--muted); font-size: 13px; font-weight: 600; flex: none; }
+  .need-note { margin: 14px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+  .stack { display: grid; gap: 20px; }
+  #drop { min-height: 220px; cursor: pointer; }
+  #drop.picked { cursor: default; min-height: 150px; }
+  .picked-info { padding: 24px; text-align: center; }
+  .picked-info b { display: block; font-size: 20px; margin-bottom: 4px; }
+  .picked-info span { color: var(--muted); }
+  .row-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+  .bar { height: 10px; border-radius: 99px; background: var(--bg); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--yellow); border-radius: 99px; transition: width .3s; }
+  .prog-t { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .prog-t span { color: var(--muted); }
+  .tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 22px 0; }
+  .seg { display: inline-flex; background: var(--bg); border-radius: 10px; padding: 3px; }
+  .seg button { border: 0; background: none; color: var(--muted); font: inherit; font-weight: 600; padding: 6px 14px; border-radius: 8px; cursor: pointer; }
+  .seg button.on { background: var(--card-2); color: var(--ink); }
+  .wrap { overflow: auto; padding: 8px 22px 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 10px 12px; white-space: nowrap; }
+  td { padding: 11px 12px; border-top: 1px solid var(--line-2); vertical-align: top; }
+  td.mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; overflow-wrap: anywhere; }
+  td.muted { color: var(--muted); }
+  .pill.sug { background: var(--yellow); }
+  .rn { display: flex; align-items: center; gap: 6px; min-width: 330px; }
+  .rn input { flex: 1; min-width: 150px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--card-2); background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
+  .rn input:focus { outline: 2px solid var(--blue); outline-offset: 0; }
+  .rn .ext { color: var(--muted); font-size: 12px; }
+  .rn .btn { padding: 6px 12px; font-size: 13px; }
+  .rn .btn:disabled { opacity: .5; cursor: default; }
+  .pill.ok { background: var(--green); } .pill.rev { background: var(--coral); } .pill.elim { background: var(--yellow); }
+  .empty-row { padding: 28px; text-align: center; color: var(--muted); }
+  details.missing { border-top: 1px solid var(--line-2); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="nav">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></div>
+      <div><b>Receipt Extractor</b><span>Travel expenses</span></div>
+    </div>
+    <div class="menu">
+      <a class="link on" href="/"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Rename receipts</a>
+      <a class="link" href="/single"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>Single receipt</a>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>Travel invoices</span></div>
+      <div class="actions">
+        <button class="btn" id="clear" hidden>Clear</button>
+        <button class="btn primary" id="apply" hidden title="Renames the matched receipts right inside the folder you chose">Rename in my folder</button>
+        <a class="btn" id="download" href="#" hidden>Download copy instead</a>
+      </div>
+    </div>
+
+    <div class="content">
+      <h1>Rename receipts</h1>
+      <p>Upload the receipts folder, with one subfolder per ER. Receipts are renamed to their annexure Text, right in your folder (Chrome or Edge) or as a downloaded copy. Click any value in the results to copy it.</p>
+
+      <div class="stats">
+        <div class="stat green"><div class="k">Folder</div><div class="v sm na" id="sPo">&ndash;</div></div>
+        <div class="stat blue"><div class="k">Receipts</div><div class="v na" id="sRec">&ndash;</div></div>
+        <div class="stat coral"><div class="k">Needs Review</div><div class="v na" id="sRev">&ndash;</div></div>
+        <div class="stat yellow"><div class="k">Renamed</div><div class="v na" id="sRen">&ndash;</div></div>
+      </div>
+
+      <div class="stack">
+        <section class="card" id="xlCard">
+          <div class="card-h"><h3>Excel files</h3></div>
+          <div class="card-b">
+            <div class="slots">
+              <div class="slot" id="slot-master" tabindex="0" role="button" aria-label="Choose the master dump workbook">
+                <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13l4 5M13 13l-4 5"/></svg></div>
+                <div class="t"><b>Master dump</b><span id="name-master"></span></div><span class="chg" id="chg-master"></span>
+              </div>
+              <div class="slot" id="slot-annexure" tabindex="0" role="button" aria-label="Choose the travel annexure workbook">
+                <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13l4 5M13 13l-4 5"/></svg></div>
+                <div class="t"><b>Travel annexure</b><span id="name-annexure"></span></div><span class="chg" id="chg-annexure"></span>
+              </div>
+            </div>
+            <input id="file-master" type="file" accept=".xlsx,.xlsm" hidden>
+            <input id="file-annexure" type="file" accept=".xlsx,.xlsm" hidden>
+            <div class="error" id="xlError" hidden style="margin:14px 0 0"></div>
+          </div>
+        </section>
+
+        <section class="card" id="pickCard">
+          <div class="card-h"><h3>Receipts folder</h3></div>
+          <div class="card-b">
+            <div id="drop" tabindex="0" role="button" aria-label="Choose the receipts folder">
+              <div class="hint" id="hint">
+                <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+                <b>Drop the receipts folder here, or click to choose it</b>
+                <span>Example: 4200007104 containing ER27003155204567, ER27003171115694 ...</span>
+              </div>
+              <div class="picked-info" id="picked" hidden>
+                <b id="pickedTitle"></b><span id="pickedSub"></span>
+                <div class="row-actions">
+                  <button class="btn primary" id="go">Rename receipts</button>
+                  <button class="btn" id="change">Choose another folder</button>
+                </div>
+                <p class="need-note" id="needNote" hidden></p>
+              </div>
+            </div>
+            <input id="dirInput" type="file" webkitdirectory directory multiple hidden>
+            <div class="error" id="pickError" hidden style="margin:14px 0 0"></div>
+          </div>
+        </section>
+
+        <section class="card" id="progCard" hidden>
+          <div class="card-b">
+            <div class="prog-t"><b id="progTitle">Working...</b><span id="progCount"></span></div>
+            <div class="bar"><i id="progBar"></i></div>
+          </div>
+        </section>
+
+        <section class="card" id="resCard" hidden>
+          <div class="card-h"><h3>Results</h3><span class="sub" id="resSub"></span></div>
+          <div class="tools">
+            <div class="seg"><button class="on" data-f="all">All</button><button data-f="review">Needs review</button><button data-f="sugg">Suggestions</button></div>
+            <span class="copy-hint">Click any value (or its copy icon) to copy it</span>
+            <button class="btn sm" id="copyRows" title="Copies the rows shown below, with column headings, ready to paste into Excel">Copy rows for Excel</button>
+          </div>
+          <div class="wrap"><table>
+            <thead><tr><th>ER</th><th>Receipt</th><th>Amount</th><th>Currency</th><th>Date</th><th>Type</th><th>Status</th><th>Renamed to</th><th>Rename</th><th>Note</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table></div>
+          <details class="missing" id="missing" hidden>
+            <summary id="missingSum"></summary>
+            <div class="wrap"><table>
+              <thead><tr><th>ER</th><th>Expense item</th><th>Date</th><th>USD</th><th>Text</th></tr></thead>
+              <tbody id="missRows"></tbody>
+            </table></div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const SUFFIX = /\.(pdf|jpe?g|png|webp|gif)$/i;
+let selection = null, jobId = null, lastRows = [], filter = 'all';
+let dirHandle = null;   // the chosen folder, when the browser lets us write back into it (Chrome / Edge)
+const HINT = 'Drop the receipts folder here, or click to choose it';
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const setStat = (id, v, cls) => { const el = $(id); el.textContent = v; el.className = 'v' + (id === 'sPo' ? ' sm' : '') + (v === '–' ? ' na' : ''); };
+const fmt = (n, c) => n == null ? '' : `${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${c || ''}`.trim();
+
+/* ---------- the two Excel files ---------- */
+const KINDS = ['master', 'annexure'];
+const workbook = { master: null, annexure: null };   // files chosen on this page
+let maxMb = 100;                                     // per-receipt size limit, from the server
+let saved = { master: null, annexure: null };         // optional defaults from the server (.env)
+const sizeText = b => b < 1048576 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1048576).toFixed(1)} MB`;
+
+function renderSlots() {
+  for (const k of KINDS) {
+    const f = workbook[k], name = $(`name-${k}`), slot = $(`slot-${k}`);
+    slot.classList.toggle('ok', !!(f || saved[k]));
+    if (f) { name.className = 'good'; name.textContent = `${f.name} · ${sizeText(f.size)}`; }
+    else if (saved[k]) { name.className = ''; name.textContent = `Using saved file: ${saved[k]}`; }
+    else { name.className = 'need'; name.textContent = 'Click to choose the Excel file (.xlsx)'; }
+    $(`chg-${k}`).textContent = f || saved[k] ? 'Change' : '';
+  }
+  updateGo();
+}
+
+function missingWorkbooks() {
+  return KINDS.filter(k => !workbook[k] && !saved[k]).map(k => k === 'master' ? 'master dump' : 'travel annexure');
+}
+
+function updateGo() {
+  const missing = missingWorkbooks(), note = $('needNote');
+  $('go').disabled = missing.length > 0 || !selection;
+  note.hidden = missing.length === 0;
+  note.textContent = missing.length ? `Choose the ${missing.join(' and the ')} Excel file${missing.length > 1 ? 's' : ''} above to continue.` : '';
+}
+
+function setWorkbook(kind, file) {
+  if (!file) return;
+  const err = $('xlError');
+  if (!/\.(xlsx|xlsm)$/i.test(file.name)) {
+    err.textContent = `${file.name} is not an .xlsx or .xlsm Excel file.`; err.hidden = false;
+    return;
+  }
+  err.hidden = true; workbook[kind] = file; renderSlots();
+}
+
+for (const k of KINDS) {
+  const slot = $(`slot-${k}`), input = $(`file-${k}`);
+  slot.addEventListener('click', () => { input.value = ''; input.click(); });
+  slot.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
+  input.addEventListener('change', () => setWorkbook(k, input.files[0]));
+  ['dragenter', 'dragover'].forEach(t => slot.addEventListener(t, e => { e.preventDefault(); slot.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => slot.addEventListener(t, e => { e.preventDefault(); slot.classList.remove('over'); }));
+  slot.addEventListener('drop', e => setWorkbook(k, e.dataTransfer.files[0]));
+}
+renderSlots();
+fetch('/api/config').then(r => r.json()).then(c => { saved = { master: c.master, annexure: c.annexure }; maxMb = c.max_receipt_mb || maxMb; renderSlots(); }).catch(() => {});
+
+/* ---------- choosing the folder ---------- */
+function showPickError(msg) { $('pickError').hidden = !msg; $('pickError').textContent = msg || ''; }
+
+function describe(entries) {
+  const top = entries[0]?.path.split('/')[0];
+  const receipts = entries.filter(e => SUFFIX.test(e.path));
+  const ers = new Map();
+  for (const e of receipts) {
+    const p = e.path.split('/');
+    if (p.length === 3 && /^ER\d+/i.test(p[1])) ers.set(p[1], (ers.get(p[1]) || 0) + 1);
+  }
+  const usable = receipts.filter(e => { const p = e.path.split('/'); return p.length === 3 && /^ER\d+/i.test(p[1]); });
+  return { folder: top, entries: usable, ers, ignored: entries.length - usable.length };
+}
+
+function choose(entries) {
+  showPickError('');
+  const sel = describe(entries);
+  if (!sel.folder || !sel.entries.length) {
+    return showPickError('No receipts found. Choose the receipts folder itself: it should contain ER folders (like ER27003155204567) with PDF or image receipts inside.');
+  }
+  selection = sel;
+  const m = sel.folder.match(/\d{10}/);
+  setStat('sPo', m ? m[0] : sel.folder); setStat('sRec', sel.entries.length); setStat('sRev', '–'); setStat('sRen', '–');
+  $('hint').hidden = true; $('picked').hidden = false; $('drop').classList.add('picked');
+  $('pickedTitle').textContent = sel.folder;
+  $('pickedSub').textContent = `${sel.ers.size} ER folder${sel.ers.size === 1 ? '' : 's'} · ${sel.entries.length} receipt${sel.entries.length === 1 ? '' : 's'}` +
+    (sel.ignored ? ` · ${sel.ignored} other file${sel.ignored === 1 ? '' : 's'} ignored` : '');
+  updateGo();
+}
+
+// Chrome / Edge can hand us the folder itself with permission to change it, so the receipts can be
+// renamed in place. Other browsers fall back to the plain folder input (download a copy).
+async function readHandle(dir) {
+  const out = [];
+  async function walk(handle, prefix) {
+    for await (const [name, h] of handle.entries()) {
+      if (h.kind === 'file') out.push({ file: await h.getFile(), path: prefix + name });
+      else await walk(h, prefix + name + '/');
+    }
+  }
+  await walk(dir, dir.name + '/');
+  return out;
+}
+
+async function useHandle(h) {
+  $('hint').querySelector('b').textContent = 'Reading folder...';
+  try {
+    if (await h.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow editing the folder so the receipts can be renamed in it.');
+    const entries = await readHandle(h);
+    dirHandle = h; choose(entries);
+  } catch (err) { showPickError(err.message); }
+  finally { $('hint').querySelector('b').textContent = HINT; }
+}
+
+async function pickFolder() {
+  if (!window.showDirectoryPicker) return $('dirInput').click();
+  try { await useHandle(await showDirectoryPicker({ mode: 'readwrite' })); }
+  catch (err) { if (err.name !== 'AbortError') showPickError(err.message); }
+}
+
+$('drop').addEventListener('click', () => { if (!selection) pickFolder(); });
+$('drop').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !selection) { e.preventDefault(); pickFolder(); } });
+$('change').addEventListener('click', e => { e.stopPropagation(); resetAll(); pickFolder(); });
+$('dirInput').addEventListener('change', e => {
+  const files = [...e.target.files];
+  dirHandle = null;
+  if (files.length) choose(files.map(f => ({ file: f, path: f.webkitRelativePath || f.name })));
+  e.target.value = '';
+});
+['dragenter', 'dragover'].forEach(t => $('drop').addEventListener(t, e => { e.preventDefault(); if (!selection) $('drop').classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => $('drop').addEventListener(t, e => { e.preventDefault(); $('drop').classList.remove('over'); }));
+$('drop').addEventListener('drop', async e => {
+  if (selection) return;
+  const list = [...e.dataTransfer.items];
+  // Both lookups must start now: the drop's items are gone after the first await.
+  const handles = list.map(i => i.getAsFileSystemHandle && i.getAsFileSystemHandle());
+  const entries = list.map(i => i.webkitGetAsEntry && i.webkitGetAsEntry());
+  const at = entries.findIndex(en => en && en.isDirectory);
+  if (at < 0) return showPickError('Drop a folder, not individual files.');
+  const h = handles[at] && await handles[at].catch(() => null);
+  if (h && h.kind === 'directory') return useHandle(h);
+  $('hint').querySelector('b').textContent = 'Reading folder...';
+  try { dirHandle = null; choose(await readDir(entries[at])); } finally { $('hint').querySelector('b').textContent = HINT; }
+});
+
+async function readDir(dirEntry) {
+  const out = [];
+  async function walk(entry, prefix) {
+    if (entry.isFile) {
+      const file = await new Promise((res, rej) => entry.file(res, rej));
+      out.push({ file, path: prefix + entry.name });
+      return;
+    }
+    const reader = entry.createReader();
+    let batch;
+    do {
+      batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+      for (const e of batch) await walk(e, prefix + entry.name + '/');
+    } while (batch.length);
+  }
+  await walk(dirEntry, '');
+  return out;
+}
+
+/* ---------- running a job ---------- */
+function progress(title, done, total) {
+  $('progCard').hidden = false;
+  $('progTitle').textContent = title;
+  $('progCount').textContent = total ? `${done} / ${total}` : '';
+  $('progBar').style.width = total ? `${Math.round(100 * done / total)}%` : '5%';
+}
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || r.statusText);
+  return data;
+}
+
+$('go').addEventListener('click', async e => {
+  e.stopPropagation();
+  const sel = selection;
+  $('go').disabled = true; $('change').disabled = true; showPickError('');
+  try {
+    jobId = (await api('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: sel.folder }) })).id;
+    for (const k of KINDS) {
+      if (!workbook[k]) continue;   // otherwise the server falls back to its saved file
+      progress(`Uploading ${k === 'master' ? 'master dump' : 'travel annexure'}`, 0, 0);
+      await api(`/api/jobs/${jobId}/workbooks/${k}`, { method: 'PUT', headers: { 'X-Filename': encodeURIComponent(workbook[k].name) }, body: workbook[k] });
+    }
+    let sent = 0, next = 0;
+    progress('Uploading receipts', 0, sel.entries.length);
+    const worker = async () => {
+      while (next < sel.entries.length) {
+        const item = sel.entries[next++];
+        const tooBig = item.file.size > maxMb * 1048576;   // announce the size, don't upload the bytes
+        await api(`/api/jobs/${jobId}/files`, { method: 'PUT', headers: { 'X-Path': encodeURIComponent(item.path), 'X-Size': String(item.file.size) }, body: tooBig ? null : item.file });
+        progress('Uploading receipts', ++sent, sel.entries.length);
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    await api(`/api/jobs/${jobId}/start`, { method: 'POST' });
+    await poll();
+  } catch (err) {
+    $('progCard').hidden = true; showPickError(err.message);
+    $('change').disabled = false; updateGo();
+  }
+});
+
+async function poll() {
+  for (;;) {
+    const s = await api(`/api/jobs/${jobId}`);
+    if (s.state === 'error') throw new Error(s.error);
+    if (s.state === 'done') return finish(s);
+    progress('Reading and matching receipts', s.done, s.total);
+    await new Promise(r => setTimeout(r, 1500));
+  }
+}
+
+/* ---------- results ---------- */
+function finish(s) {
+  $('progCard').hidden = true;
+  lastRows = s.rows;
+  lastRows.forEach(r => { r.Orig = r.File; r.Cur = r.File; });   // Orig: name in the job; Cur: name in your folder
+  updateStats(); const renamed = lastRows.filter(r => r.Status === 'Renamed').length;
+  $('resCard').hidden = false; $('clear').hidden = false;
+  $('download').hidden = false; $('download').href = `/api/jobs/${jobId}/download`;
+  $('apply').hidden = !(dirHandle && renamed); $('apply').disabled = false; $('apply').textContent = 'Rename in my folder';
+  $('resSub').textContent = `Annexure sheet ${s.sheet}`;
+  renderRows();
+  $('missing').hidden = !s.missing.length;
+  $('missingSum').textContent = `${s.missing.length} annexure row${s.missing.length === 1 ? '' : 's'} with no receipt (for example Per diem)`;
+  $('missRows').innerHTML = s.missing.map(a => `<tr><td class="er">${esc(a.er)}</td><td>${esc(a.item)}</td><td class="muted">${esc(a.date)}</td><td>${esc(a.usd)}</td><td class="mono">${esc(a.text)}</td></tr>`).join('');
+  $('go').hidden = true; $('change').hidden = true;
+}
+
+let shown = [];   // the rows currently in the table, for the copy buttons
+
+const isDone = r => r.Status.startsWith('Renamed');
+function updateStats() {
+  const done = lastRows.filter(isDone).length;
+  setStat('sRec', lastRows.length); setStat('sRen', done); setStat('sRev', lastRows.length - done);
+}
+
+// What someone needs to find a receipt in the sheet: ER, base amount (as printed on the receipt, in
+// its own currency), currency, date and type. Tab-separated so each value lands in its own Excel cell.
+const sheetLine = r => [r.ER, r.Amount ?? '', r.Currency ?? '', r.Date ?? '', r.Type ?? ''].join('\t');
+
+async function copyText(text, btn, label) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  btn.textContent = 'Copied'; setTimeout(() => btn.textContent = label, 1400);
+}
+
+function renderRows() {
+  const rows = shown = lastRows.filter(r => filter === 'all' || (filter === 'sugg' ? r.Status === 'Suggested' : !isDone(r)));
+  const dash = '<span class="muted">&ndash;</span>';
+  const cp = (v, text) => v === null || v === undefined || v === '' ? dash : `<span class="cp" data-copy="${esc(v)}" title="Click to copy">${esc(text ?? v)}</span>`;
+  $('rows').innerHTML = rows.length ? rows.map(r => {
+    const ok = isDone(r), sug = r.Status === 'Suggested', k = lastRows.indexOf(r);
+    const amount = r.Amount == null ? null : Number(r.Amount).toFixed(2);
+    const ext = (r.Orig.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+    const draft = r.draft ?? (sug ? r['Suggested name'] : '');
+    const action = ok ? '' : `<div class="rn"><input data-k="${k}" value="${esc(draft)}" placeholder="Type the new name" aria-label="New file name" maxlength="150"><span class="ext">${esc(ext)}</span><button class="btn ${sug ? 'primary' : ''}" data-act="rename" data-k="${k}">${sug ? 'Approve' : 'Rename'}</button></div>`;
+    return `<tr><td class="er">${cp(r.ER)}</td><td class="mono">${cp(r.File)}</td>
+      <td style="white-space:nowrap">${cp(amount, r.Amount == null ? '' : fmt(r.Amount, ''))}</td><td style="white-space:nowrap">${cp(r.Currency)}</td><td style="white-space:nowrap">${cp(r.Date)}</td><td style="white-space:nowrap">${cp(r.Type)}</td>
+      <td><span class="pill ${sug ? 'sug' : ok ? 'ok' : 'rev'}">${sug ? 'Suggested' : ok ? 'Renamed' : 'Review'}</span></td>
+      <td class="mono">${cp(r['New name'])}</td><td>${action}</td><td class="muted">${esc(r.Note)}</td></tr>`;
+  }).join('') : `<tr><td colspan="10" class="empty-row">${filter === 'all' ? 'No receipts.' : filter === 'sugg' ? 'There are no suggestions.' : 'Nothing needs review.'}</td></tr>`;
+}
+
+$('copyRows').addEventListener('click', e => {
+  const head = ['ER', 'Amount', 'Currency', 'Date', 'Type', 'Receipt file', 'Status', 'Note'].join('\t');
+  const clean = v => String(v ?? '').replace(/[\t\r\n]+/g, ' ');
+  const body = shown.map(r => sheetLine(r) + '\t' + [r.File, r.Status, r.Note].map(clean).join('\t'));
+  copyText([head, ...body].join('\n'), e.currentTarget, 'Copy rows for Excel');
+});
+
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
+  filter = b.dataset.f; renderRows();
+}));
+
+/* ---------- rename inside the chosen folder ---------- */
+async function exists(dir, name) {
+  try { await dir.getFileHandle(name); return true; } catch { return false; }
+}
+
+async function freeName(dir, wanted, current) {
+  if (wanted === current) return wanted;
+  const dot = wanted.lastIndexOf('.'), stem = dot > 0 ? wanted.slice(0, dot) : wanted, ext = dot > 0 ? wanted.slice(dot) : '';
+  let name = wanted;
+  for (let n = 2; await exists(dir, name); n++) name = `${stem} (${n})${ext}`;
+  return name;
+}
+
+async function renameFile(dir, src, oldName, newName) {
+  if (typeof src.move === 'function') {
+    try { await src.move(newName); return; } catch { /* not supported for this folder: copy instead */ }
+  }
+  const out = await (await dir.getFileHandle(newName, { create: true })).createWritable();
+  await out.write(await src.getFile());
+  await out.close();
+  await dir.removeEntry(oldName);
+}
+
+$('apply').addEventListener('click', async () => {
+  const todo = lastRows.filter(r => r.Status === 'Renamed' && r['New name'] && !r.applied);
+  if (!dirHandle || !todo.length) return;
+  if (!confirm(`Rename ${todo.length} receipt${todo.length === 1 ? '' : 's'} inside "${dirHandle.name}"?\n\nThis changes the file names in your folder. Receipts that need review are left as they are.`)) return;
+  const btn = $('apply'); btn.disabled = true; showPickError('');
+  const failed = [];
+  try {
+    if (await dirHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow editing the folder to rename the receipts.');
+    const dirs = new Map();
+    for await (const [name, h] of dirHandle.entries()) if (h.kind === 'directory') dirs.set(name.toUpperCase(), h);
+    let done = 0;
+    for (const r of todo) {
+      btn.textContent = `Renaming ${++done} / ${todo.length}`;
+      try {
+        const dir = dirs.get(r.ER);
+        if (!dir) throw new Error('ER folder not found');
+        const src = await dir.getFileHandle(r.Cur);
+        const name = await freeName(dir, r['New name'], r.Cur);
+        if (name !== r.Cur) await renameFile(dir, src, r.Cur, name);
+        r.applied = true; r.Cur = name; r['New name'] = name;
+      } catch (err) { failed.push(`${r.File}: ${err.message}`); }
+    }
+  } catch (err) { failed.push(err.message); }
+  const ok = todo.filter(r => r.applied).length;
+  btn.textContent = ok ? `Renamed ${ok} in your folder` : 'Rename in my folder';
+  btn.disabled = ok > 0 && !failed.length;
+  if (failed.length) showPickError(`${failed.length} could not be renamed: ${failed.slice(0, 3).join('; ')}${failed.length > 3 ? '...' : ''}`);
+  renderRows();
+});
+
+/* ---------- approve a suggestion / name a receipt by hand ---------- */
+$('rows').addEventListener('input', e => {
+  if (e.target.matches('input[data-k]')) lastRows[+e.target.dataset.k].draft = e.target.value;
+});
+$('rows').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('input[data-k]')) e.target.closest('.rn').querySelector('button').click();
+});
+$('rows').addEventListener('click', async e => {
+  const btn = e.target.closest('button[data-act="rename"]'); if (!btn) return;
+  const r = lastRows[+btn.dataset.k], input = btn.closest('.rn').querySelector('input');
+  const ext = (r.Orig.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+  let stem = input.value.replace(/[\/:*?"<>|\r\n\t]/g, '-').trim();
+  if (stem.toLowerCase().endsWith(ext)) stem = stem.slice(0, stem.length - ext.length);
+  stem = stem.replace(/[ .]+$/, '');
+  if (!stem) { input.focus(); return toast('Type the new name first'); }
+  const kind = r.Status === 'Suggested' && stem === r['Suggested name'] ? 'approve' : 'manual';
+  btn.disabled = input.disabled = true; btn.textContent = 'Renaming...';
+  let note = '';
+  try {
+    let name = stem + ext;
+    if (dirHandle) {   // rename it in the folder you chose
+      if (await dirHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow editing the folder to rename the receipt.');
+      let dir = null;
+      for await (const [n, h] of dirHandle.entries()) if (h.kind === 'directory' && n.toUpperCase() === r.ER) dir = h;
+      if (!dir) throw new Error('ER folder not found');
+      const src = await dir.getFileHandle(r.Cur);
+      name = await freeName(dir, stem + ext, r.Cur);
+      if (name !== r.Cur) await renameFile(dir, src, r.Cur, name);
+      r.Cur = name; r.applied = true;
+    } else { note = ' in the download copy'; }
+    // keep the downloadable copy and report in step
+    try { await api(`/api/jobs/${jobId}/rename`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ er: r.ER, file: r.Orig, name: name.slice(0, name.length - ext.length), kind }) }); }
+    catch (err) { if (!dirHandle) throw err; note = ' (the download copy could not be updated)'; }
+    r.Status = kind === 'approve' ? 'Renamed (approved)' : 'Renamed (by hand)';
+    r['New name'] = name; r.Note = kind === 'approve' ? 'Suggestion approved' : 'Named by hand'; delete r.draft;
+    updateStats(); renderRows(); toast('Renamed' + note);
+  } catch (err) {
+    btn.disabled = input.disabled = false; btn.textContent = r.Status === 'Suggested' ? 'Approve' : 'Rename';
+    showPickError(`Could not rename ${r.File}: ${err.message}`);
+  }
+});
+
+function resetAll() {
+  if (jobId) fetch(`/api/jobs/${jobId}`, { method: 'DELETE' }).catch(() => {});
+  jobId = null; selection = null; dirHandle = null; lastRows = []; filter = 'all';
+  $('apply').hidden = true;
+  ['sPo', 'sRec', 'sRev', 'sRen'].forEach(id => setStat(id, '–'));
+  $('hint').hidden = false; $('picked').hidden = true; $('drop').classList.remove('picked');
+  $('progCard').hidden = true; $('resCard').hidden = true; $('clear').hidden = true; $('download').hidden = true;
+  $('go').hidden = false; $('change').hidden = false; $('change').disabled = false;
+  showPickError(''); updateGo();
+}
+$('clear').addEventListener('click', resetAll);
+</script>
+</body>
+</html>
